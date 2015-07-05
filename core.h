@@ -54,7 +54,10 @@ typedef struct {
 typedef struct {
     int client;  // 用户数量
     int elevator;  // 电梯数量
-    double unit_of_time;  // 单位时间
+    int base_floor;  // 默认本垒层
+    int min_floor;  // 默认最底层
+    int max_floor;  // 默认最顶层
+    int current_time;  // 当前单位时间
     customerStru * client_queue[100];  // 用户队列
     elevatorStru * elevator_queue[10];  // 电梯队列
 } * simulatorStru, simStru;
@@ -65,58 +68,6 @@ int get_elevator_id() {
 
 int get_customer_id() {
     return customer_id ++;
-}
-
-/**
- * 初始化模拟器
- *
- * @param simulator 模拟器
- * @return void
- */
-void init(simulatorStru * simulator) {
-    *simulator = (simulatorStru) malloc (sizeof(simStru));
-    (*simulator)->client = 0;
-    (*simulator)->elevator = 0;
-}
-
-/**
- * 添加用户
- *
- * @param simulator 模拟器
- * @param source 用户源楼层
- * @param dest 用户目标楼层
- * @param patient 用户容忍时间
- * @param access 用户进或出电梯耗费的时间
- * @return void
- */
-void add_customer(simulatorStru * simulator, int source, int dest, int patient, int access) {
-    customerStru customer;
-    customer = (customerStru) malloc (sizeof(custStru));
-    customer->id = get_customer_id();
-    customer->source = source;
-    customer->destination = dest;
-    customer->patient_time = patient;
-    customer->waiting_time = 0;
-    customer->access_time = access;
-    (*simulator)->client_queue[(*simulator)->client ++] = &customer;
-}
-
-/**
- * 添加电梯
- *
- * @param simulator 模拟器
- * @param base 电梯初始位置
- * @return void
- */
-void add_elevator(simulatorStru * simulator, int base) {
-    elevatorStru elevator;
-    elevator = (elevatorStru) malloc (sizeof(elevStru));
-    elevator->id = get_elevator_id();
-    elevator->base_position = base;
-    elevator->current_position = base;
-    elevator->state = Idle;
-    elevator->state_time = 0;
-    (*simulator)->elevator_queue[(*simulator)->elevator ++] = &elevator;
 }
 
 #endif /* CORE_H */

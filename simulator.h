@@ -4,21 +4,14 @@
 #include <stdio.h>
 #include "core.h"
 
-simulatorStru simulator = NULL;  // 全局模拟器
-int elevator_number = 3;  // 默认电梯数量
-int base_floor = 1;  // 默认本垒层
-int min_floor = -1;  // 默认最底层
-int max_floor = 10;  // 默认最顶层
-/* double unit_of_time = 0.02;  // 默认单位时间 */
-
 void read_command();
 void print_cur_state();
 void print_help();
 void print_env();
 void next_unit(int unit, bool is_jump);
 void init_simulator();
-/* void add_elev(int base); */
-/* void add_cust(int source, int dest, int patient); */
+void add_customer(simulatorStru * simulator, int source, int dest, int patient, int access);
+void add_elevator(simulatorStru * simulator, int base);
 
 /**
  * 读取并解析命令
@@ -26,8 +19,13 @@ void init_simulator();
  * @return void
  */
 void read_command() {
-    int command_code = 1;
+    simulatorStru simulator;  // 全局模拟器
+
+    init_simulator(&simulator, 3, 1, -1, 10);
+
+    int command_code = 1;  // 命令码
     bool is_exit = false;  // 退出标志
+
     while(is_exit == false) {
         switch(command_code) {
         case 1:
@@ -48,7 +46,7 @@ void read_command() {
             break;
         case 6:
             // 设置环境变量
-            print_env();
+            print_env(&simulator);
             int code, temp;
             scanf("%d", &code);  // 读入命令码
             switch(code) {
@@ -61,7 +59,7 @@ void read_command() {
                     printf("参数错误, 电梯数量少于1\n");
                     printf("=========================\n");
                 } else {
-                    elevator_number = temp;
+                    simulator->elevator = temp;
                 }
                 break;
             case 1:
@@ -73,7 +71,7 @@ void read_command() {
                     printf("参数错误, 最底楼层不能大于1或等于0\n");
                     printf("=========================\n");
                 } else {
-                    min_floor = temp;
+                    simulator->min_floor = temp;
                 }
                 break;
             case 2:
@@ -85,19 +83,19 @@ void read_command() {
                     printf("参数错误, 最顶楼层不能小于或等于1\n");
                     printf("=========================\n");
                 } else {
-                    max_floor = temp;
+                    simulator->max_floor = temp;
                 }
                 break;
             case 3:
                 // 设置本垒楼层
-                printf("本垒楼层(%d ~ %d) = ", min_floor, max_floor);
+                printf("本垒楼层(%d ~ %d) = ", simulator->min_floor, simulator->max_floor);
                 scanf("%d", &temp);
-                if(temp < min_floor || temp > max_floor || temp == 0) {
+                if(temp < simulator->min_floor || temp > simulator->max_floor || temp == 0) {
                     printf("=========================\n");
                     printf("参数错误, 本垒楼层不能小于最底楼层或大于最顶楼层或等于0\n");
                     printf("=========================\n");
                 } else {
-                    base_floor = temp;
+                    simulator->base_floor = temp;
                 }
                 break;
             default:
@@ -106,7 +104,7 @@ void read_command() {
                 printf("=========================\n");
                 break;
             }
-            print_env();
+            print_env(&simulator);
             printf("请按任意键返回\n");
             getchar();
             getchar();
@@ -155,12 +153,12 @@ void print_help() {
  *
  * @return void
  */
-void print_env() {
+void print_env(simulatorStru * simulator) {
     printf(" 当前环境变量\n");
-    printf(" [0] 电梯数量: %d\n", elevator_number);
-    printf(" [1] 最底楼层: %d\n", min_floor);
-    printf(" [2] 最顶楼层: %d\n", max_floor);
-    printf(" [4] 本垒楼层: %d\n", base_floor);
+    printf(" [0] 电梯数量: %d\n", (*simulator)->elevator);
+    printf(" [1] 最底楼层: %d\n", (*simulator)->min_floor);
+    printf(" [2] 最顶楼层: %d\n", (*simulator)->max_floor);
+    printf(" [4] 本垒楼层: %d\n", (*simulator)->base_floor);
     printf(" [5] 返回\n");
     printf(" > ");
 }
@@ -168,19 +166,78 @@ void print_env() {
 /**
  * 初始化模拟器
  *
+ * @param simulator 模拟器
+ * @param elevator 电梯数量
+ * @param base_floor 本垒层
+ * @param min_floor 最底层
+ * @param max_floor 最顶层
  * @return void
  */
-void init_simulator() {
-    free(simulator);
-    init(&simulator);
+void init_simulator(simulatorStru * simulator, int elevator, int base_floor, int min_floor, int max_floor) {
+    *simulator = (simulatorStru) malloc (sizeof(simStru));
+    (*simulator)->client = 0;
+    (*simulator)->elevator = 0;  // 当前楼梯数量初始化为 0, 在添加楼梯函数中会动态修改此值
+    (*simulator)->base_floor = base_floor;
+    (*simulator)->min_floor = min_floor;
+    (*simulator)->max_floor = max_floor;
+    (*simulator)->current_time = 0;  // 当前时间初始化为 0
     int idx;
-    for(idx = 0; idx < elevator_number; idx++) {
+    for(idx = 0; idx < elevator; idx++) {
         // 添加电梯
-        add_elevator(&simulator, base_floor);
+        add_elevator(simulator, (*simulator)->base_floor);
     }
 }
 
-void print_cur_state() {}
+/**
+ * 输出当前单位时间状态
+ *
+ * @param simulator 模拟器
+ * @return void
+ */
+void print_cur_state(simulatorStru * simulator) {
+    printf(">>>>>>>>>>>>>>>> 当前单位时间: %d\n", (*simulator)->current_time);
+}
+
 void next_unit(int unit, bool is_jump) {}
+
+/**
+ * 添加用户
+ *
+ * @param simulator 模拟器
+ * @param source 用户源楼层
+ * @param dest 用户目标楼层
+ * @param patient 用户容忍时间
+ * @param access 用户进或出电梯耗费的时间
+ * @return void
+ */
+void add_customer(simulatorStru * simulator, int source, int dest, int patient, int access) {
+    customerStru customer;
+    customer = (customerStru) malloc (sizeof(custStru));
+    customer->id = get_customer_id();
+    customer->source = source;
+    customer->destination = dest;
+    customer->patient_time = patient;
+    customer->waiting_time = 0;
+    customer->access_time = access;
+    (*simulator)->client_queue[(*simulator)->client ++] = &customer;
+}
+
+/**
+ * 添加电梯
+ *
+ * @param simulator 模拟器
+ * @param base 电梯初始位置
+ * @return void
+ */
+void add_elevator(simulatorStru * simulator, int base) {
+    elevatorStru elevator;
+    elevator = (elevatorStru) malloc (sizeof(elevStru));
+    elevator->id = get_elevator_id();
+    elevator->base_position = base;
+    elevator->current_position = base;
+    elevator->state = Idle;
+    elevator->state_time = 0;
+    (*simulator)->elevator_queue[(*simulator)->elevator++] = &elevator;
+}
 
 #endif /* SIMULATOR_H */
