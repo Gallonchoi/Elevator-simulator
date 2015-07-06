@@ -19,6 +19,7 @@ typedef enum {
     Downing,  // 下降中
     Idle,  // 静止
     Opening,  // 开门中
+    Opened,  // 已开门, 等待用户进入
     Closing  // 关门中
 } elevState;
 
@@ -41,6 +42,7 @@ typedef struct {
     int patient_time;  // 容忍时间
     int waiting_time;  // 等待时间
     int access_time;  // 进或出电梯耗费时间
+    int elevator_id;  // 所在电梯 id
     custState state;
 } * customerStru, custStru;
 
@@ -49,12 +51,13 @@ typedef struct {
  */
 typedef struct {
     int id;
-    int base_position;  // 初始位置
-    int current_position;  // 当前位置
+    int base_floor;  // 初始位置
+    int current_floor;  // 当前位置
     int state_time;  // 当前状态时间
     int customer;  // 当前载有用户数量
     int move_time;  // 上升或下降一层耗费的单位时间
     int gate_op_time;  // 开门或关门耗费的时间
+    int destination;  // 目标楼层
     elevState state;  // 当前状态
     customerStru customers[50];  // 载有用户
 } * elevatorStru, elevStru;
@@ -68,8 +71,7 @@ typedef struct {
     int base_floor;  // 默认本垒层
     int min_floor;  // 默认最底层
     int max_floor;  // 默认最顶层
-    int cust_patient;  // 用户默认容忍时间
-    int cust_access_time;  // 用户默认进或出电梯耗费时间
+    int max_idle_time;  // 电梯静止最大时间, 达到则返回本垒层
     int current_time;  // 当前单位时间
     int calling_number;  // 呼叫信号数量
     int calling_queue[120];  // 电梯呼叫信号队列, 保存呼叫楼层
@@ -116,6 +118,9 @@ char * get_elev_state(elevState state) {
     case Opening:
         *description = "开门中";
         break;
+    case Opened:
+        *description = "完成开门动作, 等待用户进入";
+        break;
     case Closing:
         *description = "关门中";
         break;
@@ -144,6 +149,28 @@ char * get_cust_state(custState state) {
     }
     return *description;
 }
+
+/**
+ * 查看某楼层是否有用户等待
+ *
+ * @param simulator 模拟器
+ * @param floor 目标楼层
+ * @return bool
+ */
+/* bool search_customer(simulatorStru * simulator, int floor) { */
+/*     int idx; */
+/*     for(idx = 0; idx < (*simulator)->customer; idx ++) { */
+/*         customerStru cust; */
+/*         cust = (*simulator)->customer_queue[idx]; */
+/*         if(cust->in_floor != floor || cust->state == Ongoing) { */
+/*             // 用户源楼层不为搜索目标楼层或者用户正在电梯内, 则跳过 */
+/*             continue; */
+/*         } else { */
+/*             return true; */
+/*         } */
+/*     } */
+/*     return false; */
+/* } */
 
 /**
  * 搜索呼叫信号是否存在
@@ -189,5 +216,46 @@ void set_new_calling(simulatorStru * simulator, int floor) {
         }
     }
 }
+
+/**
+ * 设置电梯目标楼层
+ *
+ * @param elevator 电梯
+ * @param floor 目标楼层
+ * @return void
+ */
+void go_to(elevatorStru * elevator, int floor) {
+    if((*elevator)->current_floor == floor) {
+        (*elevator)->state = Idle;
+        (*elevator)->destination = 0;  // 目标楼层置 0
+    } else if((*elevator)->current_floor < floor) {
+        (*elevator)->state = Downing;
+        (*elevator)->destination = floor;
+        (*elevator)->state_time = 0;  // 重置当前状态时间
+    } else {
+        (*elevator)->state = Uping;
+        (*elevator)->destination = floor;
+        (*elevator)->state_time = 0;  // 重置当前状态时间
+    }
+}
+
+/**
+ * 搜索电梯内是否有用户到达目的楼层
+ *
+ * @param elevator 电梯
+ * @return bool
+ */
+/* bool search_arrived_customer(elevatorStru * elevator) { */
+/*     int idx; */
+
+/*     for(idx = 0; idx < (*elevator)->customer; idx ++) { */
+/*         customerStru cust; */
+/*         cust = (*elevator)->customers[idx]; */
+/*         if(cust->out_floor == (*elevator)->current_floor) { */
+/*             return true; */
+/*         } */
+/*     } */
+/*     return false; */
+/* } */
 
 #endif /* CORE_H */

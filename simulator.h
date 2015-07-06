@@ -5,15 +5,15 @@
 #include "core.h"
 
 void read_command();
-void print_cur_state();
+void print_cur_state(simulatorStru * simulator);
 void print_help();
 void print_env();
-void next_unit(int unit, bool is_jump);
-void init_simulator();
+void next_unit(simulatorStru * simulator, int time);
+void init_simulator(simulatorStru * simulator, int elevator, int base_floor, int min_floor, int max_floor);
 void add_customer(simulatorStru * simulator, int in_floor, int out_floor, int patient, int access);
 void add_elevator(simulatorStru * simulator, int base);
 
-/**n
+/**
  * 读取并解析命令
  *
  * @return void
@@ -194,8 +194,7 @@ void init_simulator(simulatorStru * simulator, int elevator, int base_floor, int
     (*simulator)->min_floor = min_floor;
     (*simulator)->max_floor = max_floor;
     (*simulator)->current_time = 0;  // 当前时间初始化为 0
-    (*simulator)->cust_patient = 100;
-    (*simulator)->cust_access_time = 25;
+    (*simulator)->max_idle_time = 300;
     int idx;
     for(idx = 0; idx < elevator; idx++) {
         // 添加电梯
@@ -220,7 +219,7 @@ void print_cur_state(simulatorStru * simulator) {
         elevatorStru elev;
         elev = (*simulator)->elevator_queue[idx];
         printf(" [%d] 电梯ID:     %d\n", idx, elev->id);
-        printf("      电梯位置:    %d\n", elev->current_position);
+        printf("      电梯位置:    %d\n", elev->current_floor);
         printf("      当前状态:    %s\n", get_elev_state(elev->state));
         printf("      载有用户数量: %d\n", elev->customer);
     }
@@ -229,16 +228,91 @@ void print_cur_state(simulatorStru * simulator) {
     for(idx = 0; idx < (*simulator)->customer; idx++) {
         customerStru cust;
         cust = (*simulator)->customer_queue[idx];
-        printf(" [%d] 用户ID:     %d\n", idx, cust->id);
-        printf("      呼叫位置:    %d\n", cust->in_floor);
-        printf("      目标位置:    %d\n", cust->out_floor);
-        printf("      当前状态:    %s\n", get_cust_state(cust->state));
-        printf("      等待时间:    %d\n", cust->waiting_time);
+        printf(" [%d] 用户ID:       %d\n", idx, cust->id);
+        printf("      呼叫位置:      %d\n", cust->in_floor);
+        printf("      目标位置:      %d\n", cust->out_floor);
+        printf("      当前状态:      %s\n", get_cust_state(cust->state));
+        printf("      所在电梯ID:    %d\n", cust->elevator_id);
+        printf("      等待时间:      %d\n", cust->waiting_time);
     }
     printf("^^^^^^^^^^^^^^^^^^^^^^^^^\n");
 }
 
-void next_unit(int unit, bool is_jump) {}
+/**
+ * 模拟到下 N 个单位时间
+ *
+ * @param simulator 模拟器
+ * @param time 单位时间
+ * @return void
+ */
+void next_unit(simulatorStru * simulator, int time) {
+    int idx, next;
+
+    for(next = 1; next <= time; next ++) {
+        //  更新各个电梯状态
+        for(idx = 0; idx < (*simulator)->elevator; idx ++) {
+            elevatorStru elev;
+            elev = (*simulator)->elevator_queue[idx];
+
+            elev->state_time ++;  // 自增电梯状态时间
+            // 更新电梯状态
+            switch(elev->state) {
+            case Idle:
+                if(elev->state_time >= (*simulator)->max_idle_time) {
+                    // 电梯静止时间到达最大空闲时间, 返回本垒层
+                    go_to(&elev, elev->base_floor);
+                }
+                break;
+            case Uping:
+                if(elev->state_time == elev->move_time) {
+                    // 电梯上升一层
+                    elev->current_floor ++;
+                    if(elev->current_floor == elev->destination) {
+                        // 电梯到达目的楼层
+                        elev->state = Opening;  // 变换状态为"正在打开门"
+                        elev->state_time = 0;  // 置 0 当前状态时间
+                    }
+                }
+                break;
+            case Downing:
+                if(elev->state_time == elev->move_time) {
+                    // 电梯下降一层
+                    elev->current_floor --;
+                    if(elev->current_floor == elev->destination) {
+                        // 电梯到达目的楼层
+                        elev->state = Opening;  // 变换状态为"正在打开门"
+                        elev->state_time = 0;  // 置 0 当前状态时间
+                    }
+                }
+                break;
+            case Opening:
+                if(elev->state_time == elev->gate_op_time) {
+                    // 电梯完成开门动作
+                    elev->state = Opened;  // 变换状态为"已打开"
+                    elev->state_time = 0;  // 置 0 当前状态时间
+                }
+                break;
+            case Opened:
+                // 等待用户进入
+                break;
+            case Closing:
+                if(elev->state_time == elev->gate_op_time) {
+                    // 电梯完成关门动作
+                    // TODO: 设置目的楼层
+                }
+                break;
+            }
+        }
+
+        // 更新各个用户状态
+        for(idx = 0; idx < (*simulator)->customer; idx ++) {
+
+        }
+
+        // 输出当前单位时间状态
+        print_cur_state(simulator);
+    }
+}
 
 /**
  * 添加用户
@@ -260,6 +334,7 @@ void add_customer(simulatorStru * simulator, int in_floor, int out_floor, int pa
     customer->waiting_time = 0;
     customer->access_time = access;
     customer->state = Waiting;
+    customer->elevator_id = 0;
     (*simulator)->customer_queue[(*simulator)->customer ++] = customer;
 }
 
@@ -274,10 +349,13 @@ void add_elevator(simulatorStru * simulator, int base) {
     elevatorStru elevator;
     elevator = (elevatorStru) malloc (sizeof(elevStru));
     elevator->id = get_elevator_id();
-    elevator->base_position = base;
-    elevator->current_position = base;
+    elevator->base_floor = base;
+    elevator->current_floor = base;
     elevator->state = Idle;
+    elevator->gate_op_time = 20;
+    elevator->move_time = 30;
     elevator->state_time = 0;
+    elevator->destination = 0;
     (*simulator)->elevator_queue[(*simulator)->elevator++] = elevator;
 }
 
