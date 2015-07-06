@@ -10,7 +10,7 @@ void print_help();
 void print_env();
 void next_unit(int unit, bool is_jump);
 void init_simulator();
-void add_customer(simulatorStru * simulator, int source, int dest, int patient, int access);
+void add_customer(simulatorStru * simulator, int in_floor, int out_floor, int patient, int access);
 void add_elevator(simulatorStru * simulator, int base);
 
 /**n
@@ -35,6 +35,10 @@ void read_command() {
         case 2:
             // 输出当前状态
             print_cur_state(&simulator);
+            printf("请按任意键返回\n");
+            getchar();
+            getchar();
+            print_help();
             break;
         case 3:
             // 模拟到下一个单位时间
@@ -44,6 +48,14 @@ void read_command() {
             break;
         case 5:
             // 添加用户
+            {
+                int in_floor, out_floor, patient, access;
+                scanf("%d", &in_floor);  // 源楼层
+                scanf("%d", &out_floor);  // 目标楼层
+                scanf("%d", &patient);  // 目标楼层
+                scanf("%d", &access);  // 目标楼层
+                add_customer(&simulator, in_floor, out_floor, patient, access);
+            }
             break;
         case 6:
             // 设置环境变量
@@ -138,14 +150,14 @@ void read_command() {
 void print_help() {
     printf(" Elevator simulator\n");
     printf(" Commands:\n");
-    printf(" 1     : 输出帮助\n");
-    printf(" 2     : 当前电梯状态\n");
-    printf(" 3     : 模拟到下一个单位时间\n");
-    printf(" 4 N   : 模拟到下N个单位时间(N为数字)\n");
-    printf(" 5 S D : 添加用户(S为初始位置, D为目的位置)\n");
-    printf(" 6     : 设置变量\n");
-    printf(" 7     : 重置\n");
-    printf(" 8     : 退出\n");
+    printf(" 1         : 输出帮助\n");
+    printf(" 2         : 当前电梯状态\n");
+    printf(" 3         : 模拟到下一个单位时间\n");
+    printf(" 4 N       : 模拟到下N个单位时间(N为数字)\n");
+    printf(" 5 I O P A : 添加用户(I为呼叫楼层, O为目的楼层, P为容忍单位时间, A为进出电梯单位时间)\n");
+    printf(" 6         : 设置变量\n");
+    printf(" 7         : 重置\n");
+    printf(" 8         : 退出\n");
     printf(" > ");
 }
 
@@ -182,6 +194,8 @@ void init_simulator(simulatorStru * simulator, int elevator, int base_floor, int
     (*simulator)->min_floor = min_floor;
     (*simulator)->max_floor = max_floor;
     (*simulator)->current_time = 0;  // 当前时间初始化为 0
+    (*simulator)->cust_patient = 100;
+    (*simulator)->cust_access_time = 25;
     int idx;
     for(idx = 0; idx < elevator; idx++) {
         // 添加电梯
@@ -199,16 +213,27 @@ void print_cur_state(simulatorStru * simulator) {
     printf(" >>>>>>>>>>>>>>>> 当前单位时间: %d\n", (*simulator)->current_time);
     printf(" >>>>>>>>>>>>>>>> 电梯数量: %d\n", (*simulator)->elevator);
     printf(" >>>>>>>>>>>>>>>> 用户数量: %d\n", (*simulator)->customer);
+    // 输出电梯状态
     printf(" 电梯状态:\n");
     int idx;
     for(idx = 0; idx < (*simulator)->elevator; idx++) {
         elevatorStru elev;
         elev = (*simulator)->elevator_queue[idx];
-        printf("%p\n", elev);
         printf(" [%d] 电梯ID:     %d\n", idx, elev->id);
         printf("      电梯位置:    %d\n", elev->current_position);
-        printf("      当前状态:    %s\n", get_state(elev->state));
+        printf("      当前状态:    %s\n", get_elev_state(elev->state));
         printf("      载有用户数量: %d\n", elev->customer);
+    }
+    // 输出用户状态
+    printf(" 用户状态:\n");
+    for(idx = 0; idx < (*simulator)->customer; idx++) {
+        customerStru cust;
+        cust = (*simulator)->customer_queue[idx];
+        printf(" [%d] 用户ID:     %d\n", idx, cust->id);
+        printf("      呼叫位置:    %d\n", cust->in_floor);
+        printf("      目标位置:    %d\n", cust->out_floor);
+        printf("      当前状态:    %s\n", get_cust_state(cust->state));
+        printf("      等待时间:    %d\n", cust->waiting_time);
     }
     printf("^^^^^^^^^^^^^^^^^^^^^^^^^\n");
 }
@@ -219,21 +244,22 @@ void next_unit(int unit, bool is_jump) {}
  * 添加用户
  *
  * @param simulator 模拟器
- * @param source 用户源楼层
- * @param dest 用户目标楼层
+ * @param in_floor 用户源楼层
+ * @param out_floor 用户目标楼层
  * @param patient 用户容忍时间
  * @param access 用户进或出电梯耗费的时间
  * @return void
  */
-void add_customer(simulatorStru * simulator, int source, int dest, int patient, int access) {
+void add_customer(simulatorStru * simulator, int in_floor, int out_floor, int patient, int access) {
     customerStru customer;
     customer = (customerStru) malloc (sizeof(custStru));
     customer->id = get_customer_id();
-    customer->source = source;
-    customer->destination = dest;
+    customer->in_floor = in_floor;
+    customer->out_floor = out_floor;
     customer->patient_time = patient;
     customer->waiting_time = 0;
     customer->access_time = access;
+    customer->state = Waiting;
     (*simulator)->customer_queue[(*simulator)->customer ++] = customer;
 }
 
