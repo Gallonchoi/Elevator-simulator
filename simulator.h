@@ -13,7 +13,7 @@ void init_simulator();
 void add_customer(simulatorStru * simulator, int source, int dest, int patient, int access);
 void add_elevator(simulatorStru * simulator, int base);
 
-/**
+/**n
  * 读取并解析命令
  *
  * @return void
@@ -34,6 +34,7 @@ void read_command() {
             break;
         case 2:
             // 输出当前状态
+            print_cur_state(&simulator);
             break;
         case 3:
             // 模拟到下一个单位时间
@@ -175,7 +176,7 @@ void print_env(simulatorStru * simulator) {
  */
 void init_simulator(simulatorStru * simulator, int elevator, int base_floor, int min_floor, int max_floor) {
     *simulator = (simulatorStru) malloc (sizeof(simStru));
-    (*simulator)->client = 0;
+    (*simulator)->customer = 0;
     (*simulator)->elevator = 0;  // 当前楼梯数量初始化为 0, 在添加楼梯函数中会动态修改此值
     (*simulator)->base_floor = base_floor;
     (*simulator)->min_floor = min_floor;
@@ -195,7 +196,21 @@ void init_simulator(simulatorStru * simulator, int elevator, int base_floor, int
  * @return void
  */
 void print_cur_state(simulatorStru * simulator) {
-    printf(">>>>>>>>>>>>>>>> 当前单位时间: %d\n", (*simulator)->current_time);
+    printf(" >>>>>>>>>>>>>>>> 当前单位时间: %d\n", (*simulator)->current_time);
+    printf(" >>>>>>>>>>>>>>>> 电梯数量: %d\n", (*simulator)->elevator);
+    printf(" >>>>>>>>>>>>>>>> 用户数量: %d\n", (*simulator)->customer);
+    printf(" 电梯状态:\n");
+    int idx;
+    for(idx = 0; idx < (*simulator)->elevator; idx++) {
+        elevatorStru elev;
+        elev = (*simulator)->elevator_queue[idx];
+        printf("%p\n", elev);
+        printf(" [%d] 电梯ID:     %d\n", idx, elev->id);
+        printf("      电梯位置:    %d\n", elev->current_position);
+        printf("      当前状态:    %s\n", get_state(elev->state));
+        printf("      载有用户数量: %d\n", elev->customer);
+    }
+    printf("^^^^^^^^^^^^^^^^^^^^^^^^^\n");
 }
 
 void next_unit(int unit, bool is_jump) {}
@@ -219,7 +234,7 @@ void add_customer(simulatorStru * simulator, int source, int dest, int patient, 
     customer->patient_time = patient;
     customer->waiting_time = 0;
     customer->access_time = access;
-    (*simulator)->client_queue[(*simulator)->client ++] = &customer;
+    (*simulator)->customer_queue[(*simulator)->customer ++] = customer;
 }
 
 /**
@@ -237,7 +252,7 @@ void add_elevator(simulatorStru * simulator, int base) {
     elevator->current_position = base;
     elevator->state = Idle;
     elevator->state_time = 0;
-    (*simulator)->elevator_queue[(*simulator)->elevator++] = &elevator;
+    (*simulator)->elevator_queue[(*simulator)->elevator++] = elevator;
 }
 
 #endif /* SIMULATOR_H */
