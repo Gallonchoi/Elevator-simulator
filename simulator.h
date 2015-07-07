@@ -12,6 +12,8 @@ void next_unit(simulatorStru * simulator, int time);
 void init_simulator(simulatorStru * simulator, int elevator, int base_floor, int min_floor, int max_floor);
 void add_customer(simulatorStru * simulator, int in_floor, int out_floor, int patient, int access);
 void add_elevator(simulatorStru * simulator, int base);
+void update_elevator(simulatorStru * simulator);
+void update_customer(simulatorStru * simulator);
 
 /**
  * 读取并解析命令
@@ -246,116 +248,138 @@ void print_cur_state(simulatorStru * simulator) {
  * @return void
  */
 void next_unit(simulatorStru * simulator, int time) {
-    int idx, next;
+    int next;
 
     for(next = 1; next <= time; next ++) {
         //  更新各个电梯状态
-        for(idx = 0; idx < (*simulator)->elevator; idx ++) {
-            elevatorStru elev;
-            elev = (*simulator)->elevator_queue[idx];
-
-            elev->state_time ++;  // 自增电梯状态时间
-            // 更新电梯状态
-            switch(elev->state) {
-            case Idle:
-                if(elev->state_time >= (*simulator)->max_idle_time) {
-                    // 电梯静止时间到达最大空闲时间, 返回本垒层
-                    go_to(&elev, elev->base_floor);
-                }
-                break;
-            case Uping:
-                if(elev->state_time == elev->move_time) {
-                    // 电梯上升一层
-                    elev->current_floor ++;
-                    if(elev->current_floor == elev->destination) {
-                        // 电梯到达目的楼层
-                        elev->state = Opening;  // 变换状态为"正在打开门"
-                        elev->state_time = 0;  // 置 0 当前状态时间
-                    }
-                }
-                break;
-            case Downing:
-                if(elev->state_time == elev->move_time) {
-                    // 电梯下降一层
-                    elev->current_floor --;
-                    if(elev->current_floor == elev->destination) {
-                        // 电梯到达目的楼层
-                        elev->state = Opening;  // 变换状态为"正在打开门"
-                        elev->state_time = 0;  // 置 0 当前状态时间
-                    }
-                }
-                break;
-            case Opening:
-                if(elev->state_time == elev->gate_op_time) {
-                    // 电梯完成开门动作
-                    elev->state = Opened;  // 变换状态为"已打开"
-                    elev->state_time = 0;  // 置 0 当前状态时间
-                }
-                break;
-            case Opened:
-                // 等待用户进入或出去
-                if(out_elevator(&elev) == true) {
-                    // 电梯内到达目标楼层的用户都出来了
-                    // 等待用户进入电梯
-                    if(in_elevator(&elev) == true) {
-                        // 等待用户都进入电梯
-                        // 重置电梯参数
-                        elev->in_floor_front = 0;
-                        elev->in_floor_rear = 0;
-                        elev->out_floor_front = 0;
-                        elev->out_floor_rear = 0;
-                        elev->state = Closing;
-                        elev->state_time = 0;
-                    }
-                }
-                break;
-            case Closing:
-                if(elev->state_time == elev->gate_op_time) {
-                    // 电梯完成关门动作
-                    // TODO: 设置目的楼层
-                }
-                break;
-            }
-        }
+        update_elevator(simulator);
 
         // 更新各个用户状态
-        for(idx = 0; idx < (*simulator)->customer; idx ++) {
-            customerStru cust;
-            cust = (*simulator)->customer_queue[idx];
-
-            switch(cust->state) {
-            case Waiting:
-                cust->state_time ++;
-                if(cust->state_time >= cust->patient_time) {
-                    // 用户等待时间达到最大容忍时间, 离开
-                    cust->state = Leaving;
-                } else {
-                    elevatorStru elev;
-                    elev = search_elevator(simulator, cust->in_floor);
-                    if(elev != NULL) {
-                        // 用户所在楼层有电梯空闲
-                        cust->elevator_id = elev->id;
-                        cust->state = Accessing;  // 进入电梯
-                        cust->state_time = 0;
-                        elev->in_floor_queue[elev->in_floor_rear++] = cust;  // 添加用户到电梯排队队列
-                    }
-                }
-                break;
-            case Accessing:
-                // 用户正在进入电梯
-                break;
-            case Ongoing:
-                // 用户正在电梯内
-                break;
-            case Leaving:
-                // 用户离开
-                // TODO: 删除用户
-                break;
-            }
-        }
+        update_customer(simulator);
 
         // 输出当前单位时间状态
         print_cur_state(simulator);
+    }
+}
+
+/**
+ * 更新各个电梯状态
+ *
+ * @param simualtor 模拟器
+ * @return void
+ */
+void update_elevator(simulatorStru * simulator) {
+    int idx;
+    for(idx = 0; idx < (*simulator)->elevator; idx ++) {
+        elevatorStru elev;
+        elev = (*simulator)->elevator_queue[idx];
+
+        elev->state_time ++;  // 自增电梯状态时间
+        // 更新电梯状态
+        switch(elev->state) {
+        case Idle:
+            if(elev->state_time >= (*simulator)->max_idle_time) {
+                // 电梯静止时间到达最大空闲时间, 返回本垒层
+                go_to(&elev, elev->base_floor);
+            }
+            break;
+        case Uping:
+            if(elev->state_time == elev->move_time) {
+                // 电梯上升一层
+                elev->current_floor ++;
+                if(elev->current_floor == elev->destination) {
+                    // 电梯到达目的楼层
+                    elev->state = Opening;  // 变换状态为"正在打开门"
+                    elev->state_time = 0;  // 置 0 当前状态时间
+                }
+            }
+            break;
+        case Downing:
+            if(elev->state_time == elev->move_time) {
+                // 电梯下降一层
+                elev->current_floor --;
+                if(elev->current_floor == elev->destination) {
+                    // 电梯到达目的楼层
+                    elev->state = Opening;  // 变换状态为"正在打开门"
+                    elev->state_time = 0;  // 置 0 当前状态时间
+                }
+            }
+            break;
+        case Opening:
+            if(elev->state_time == elev->gate_op_time) {
+                // 电梯完成开门动作
+                elev->state = Opened;  // 变换状态为"已打开"
+                elev->state_time = 0;  // 置 0 当前状态时间
+            }
+            break;
+        case Opened:
+            // 等待用户进入或出去
+            if(out_elevator(&elev) == true) {
+                // 电梯内到达目标楼层的用户都出来了
+                // 等待用户进入电梯
+                if(in_elevator(&elev) == true) {
+                    // 等待用户都进入电梯
+                    // 重置电梯参数
+                    elev->in_floor_front = 0;
+                    elev->in_floor_rear = 0;
+                    elev->out_floor_front = 0;
+                    elev->out_floor_rear = 0;
+                    elev->state = Closing;
+                    elev->state_time = 0;
+                }
+            }
+            break;
+        case Closing:
+            if(elev->state_time == elev->gate_op_time) {
+                // 电梯完成关门动作
+                // TODO: 设置目的楼层
+            }
+            break;
+        }
+    }
+}
+
+/**
+ * 更新各个用户状态
+ *
+ * @param simualtor 模拟器
+ * @return void
+ */
+void update_customer(simulatorStru * simulator) {
+    int idx;
+    for(idx = 0; idx < (*simulator)->customer; idx ++) {
+        customerStru cust;
+        cust = (*simulator)->customer_queue[idx];
+
+        switch(cust->state) {
+        case Waiting:
+            cust->state_time ++;
+            if(cust->state_time >= cust->patient_time) {
+                // 用户等待时间达到最大容忍时间, 离开
+                cust->state = Leaving;
+            } else {
+                elevatorStru elev;
+                elev = search_elevator(simulator, cust->in_floor);
+                if(elev != NULL) {
+                    // 用户所在楼层有电梯空闲
+                    cust->elevator_id = elev->id;
+                    cust->state = Accessing;  // 进入电梯
+                    cust->state_time = 0;
+                    elev->in_floor_queue[elev->in_floor_rear++] = cust;  // 添加用户到电梯排队队列
+                }
+            }
+            break;
+        case Accessing:
+            // 用户正在进入电梯
+            break;
+        case Ongoing:
+            // 用户正在电梯内
+            break;
+        case Leaving:
+            // 用户离开
+            // TODO: 删除用户
+            break;
+        }
     }
 }
 
