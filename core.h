@@ -251,6 +251,7 @@ void set_new_up_calling(simulatorStru * simulator, int floor) {
             }
         }
     }
+    (*simulator)->calling_up_number ++;
 }
 
 /**
@@ -285,6 +286,7 @@ void set_new_down_calling(simulatorStru * simulator, int floor) {
             }
         }
     }
+    (*simulator)->calling_down_number ++;
 }
 
 /**

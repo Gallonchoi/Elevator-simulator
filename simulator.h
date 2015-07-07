@@ -37,9 +37,6 @@ void read_command() {
         case 2:
             // 输出当前状态
             print_cur_state(&simulator);
-            printf("请按任意键返回\n");
-            getchar();
-            getchar();
             print_help();
             break;
         case 3:
@@ -65,6 +62,8 @@ void read_command() {
                 scanf("%d", &patient);  // 目标楼层
                 scanf("%d", &access);  // 目标楼层
                 add_customer(&simulator, in_floor, out_floor, patient, access);
+                print_cur_state(&simulator);
+                print_help();
             }
             break;
         case 6:
@@ -128,9 +127,6 @@ void read_command() {
                 break;
             }
             print_env(&simulator);
-            printf("请按任意键返回\n");
-            getchar();
-            getchar();
             print_help();
             break;
         case 7:
@@ -441,9 +437,9 @@ void add_customer(simulatorStru * simulator, int in_floor, int out_floor, int pa
     customer->elevator_id = 0;
     (*simulator)->customer_queue[(*simulator)->customer ++] = customer;
     if(in_floor < out_floor) {
-        set_new_up_calling(simulator, customer->in_floor);
+        set_new_up_calling(simulator, in_floor);
     } else {
-        set_new_down_calling(simulator, customer->in_floor);
+        set_new_down_calling(simulator, in_floor);
     }
 }
 
