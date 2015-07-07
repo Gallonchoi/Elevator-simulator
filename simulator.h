@@ -78,7 +78,7 @@ void read_command() {
                 scanf("%d", &temp);
                 if(temp < 1 || temp > 9) {
                     printf("=========================\n");
-                    printf("参数错误, 电梯数量少于1\n");
+                    printf("参数错误, 电梯数量少于1或大于9\n");
                     printf("=========================\n");
                 } else {
                     simulator->elevator = temp;
@@ -126,6 +126,7 @@ void read_command() {
                 printf("=========================\n");
                 break;
             }
+            delete_all_cust(&simulator);  // 去除所有用户
             print_env(&simulator);
             print_help();
             break;
@@ -237,6 +238,7 @@ void print_cur_state(simulatorStru * simulator) {
         printf(" [%d] 电梯ID:     %d\n", idx, elev->id);
         printf("      电梯位置:    %d\n", elev->current_floor);
         printf("      当前状态:    %s\n", get_elev_state(elev->state));
+        printf("      当前状态时间: %d\n", elev->state_time);
         printf("      目的楼层:    %d\n", elev->destination);
         printf("      载有用户数量: %d\n", elev->customer);
     }
@@ -312,7 +314,7 @@ void update_elevator(simulatorStru * simulator) {
                     elev->state_time = 0;  // 置 0 当前状态时间
                     delete_up_calling(simulator, elev->current_floor);
                     delete_down_calling(simulator, elev->current_floor);
-                } else {
+                } else if(search_up_calling(simulator, elev->current_floor) == true) {
                     delete_up_calling(simulator, elev->current_floor);
                     add_up_customer(simulator, &elev, elev->current_floor);
                     if(elev->in_floor_front < elev->in_floor_rear) {
@@ -333,7 +335,7 @@ void update_elevator(simulatorStru * simulator) {
                     elev->state_time = 0;  // 置 0 当前状态时间
                     delete_up_calling(simulator, elev->current_floor);
                     delete_down_calling(simulator, elev->current_floor);
-                } else {
+                } else if(search_down_calling(simulator, elev->current_floor)) {
                     delete_down_calling(simulator, elev->current_floor);
                     add_down_customer(simulator, &elev, elev->current_floor);
                     if(elev->in_floor_front < elev->in_floor_rear) {

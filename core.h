@@ -541,4 +541,58 @@ void set_destination(elevatorStru * elevator) {
     }
 }
 
+/**
+ * 查看某层是否有上升信号
+ *
+ * @param simulator 模拟器
+ * @param floor 目标楼层
+ * @return bool
+ */
+bool search_up_calling(simulatorStru * simulator, int floor) {
+    int idx;
+    for(idx = 0; idx < (*simulator)->calling_up_number; idx ++) {
+        if((*simulator)->calling_up_queue[idx] == floor) {
+            return true;
+        } else if((*simulator)->calling_up_queue[idx] > floor) {
+            break;
+        }
+    }
+    return false;
+}
+
+/**
+ * 查看某层是否有下降信号
+ *
+ * @param simulator 模拟器
+ * @param floor 目标楼层
+ * @return bool
+ */
+bool search_down_calling(simulatorStru * simulator, int floor) {
+    int idx;
+    for(idx = 0; idx < (*simulator)->calling_down_number; idx ++) {
+        if((*simulator)->calling_down_queue[idx] == floor) {
+            return true;
+        } else if((*simulator)->calling_down_queue[idx] > floor) {
+            break;
+        }
+    }
+    return false;
+}
+
+/**
+ * 去除所有用户
+ *
+ * @param simulator 模拟器
+ * @return void
+ */
+void delete_all_cust(simulatorStru * simulator) {
+    int idx;
+    for(idx = 0; idx < (*simulator)->customer; idx ++) {
+        customerStru cust;
+        cust = (*simulator)->customer_queue[idx];
+        free(cust);
+    }
+    (*simulator)->customer = 0;
+}
+
 #endif /* CORE_H */
