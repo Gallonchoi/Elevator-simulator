@@ -24,6 +24,14 @@ typedef enum {
 } elevState;
 
 /**
+ * 电梯信号
+ */
+typedef enum {
+    Up,
+    Down
+} elevSignal;
+
+/**
  * 用户状态
  */
 typedef enum {
@@ -83,13 +91,19 @@ typedef struct {
     int max_floor;  // 默认最顶层
     int max_idle_time;  // 电梯静止最大时间, 达到则返回本垒层
     int current_time;  // 当前单位时间
-    int calling_number;  // 呼叫信号数量
-    int calling_queue[120];  // 电梯呼叫信号队列, 保存呼叫楼层
+
+    int calling_up_number;  // 呼叫上升信号数量
+    int calling_down_number;  // 呼叫下降信号数量
+    int calling_up_queue[120];  // 电梯上升呼叫信号队列, 保存呼叫楼层
+    int calling_down_queue[120];  // 电梯下降呼叫信号队列, 保存呼叫楼层
+
     customerStru customer_queue[100];  // 用户队列
     elevatorStru elevator_queue[10];  // 电梯队列
 } * simulatorStru, simStru;
 
 void go_to(elevatorStru * elevator, int floor);
+void delete_up_calling(simulatorStru * simulator, int floor);
+void delete_down_calling(simulatorStru * simulator, int floor);
 
 /**
  * 获取新电梯 id
@@ -206,49 +220,68 @@ void add_down_customer(simulatorStru * simulator, elevatorStru * elevator, int f
 }
 
 /**
- * 搜索呼叫信号是否存在
+ * 设置上升信号
  *
  * @param simulator 模拟器
- * @param floor 呼叫楼层
- * @return bool
+ * @param floor 目标楼层
+ * @return void
  */
-bool search_calling(simulatorStru * simulator, int floor) {
+void set_new_up_calling(simulatorStru * simulator, int floor) {
+    if((*simulator)->calling_up_number == 0) {
+        (*simulator)->calling_up_queue[(*simulator)->calling_up_number ++] = floor;
+        return;
+    }
+    // 直接插入排序
     int idx;
-    for(idx = 0; idx < (*simulator)->calling_number; idx ++) {
-        if((*simulator)->calling_queue[idx] == floor) {
-            return true;
+    for(idx = (*simulator)->calling_up_number; idx > 0; idx ++) {
+        if((*simulator)->calling_up_queue[idx - 1] == floor) {
+            // 重复信号
+            return;
+        }
+        if((*simulator)->calling_up_queue[idx - 1] < floor) {
+            // 插入新元素
+            (*simulator)->calling_up_queue[idx] = floor;
+            break;
+        } else {
+            // 后移元素
+            (*simulator)->calling_up_queue[idx] = (*simulator)->calling_up_queue[idx - 1];
+            if(idx == 1) {
+                // 插入到记录头部
+                (*simulator)->calling_up_queue[0] = floor;
+            }
         }
     }
-    return false;
 }
 
 /**
- * 设置新的呼叫信号
+ * 设置下降信号
  *
  * @param simulator 模拟器
- * @param floor 呼叫楼层
+ * @param floor 目标楼层
  * @return void
  */
-void set_new_calling(simulatorStru * simulator, int floor) {
-    if(search_calling(simulator, floor) == false) {
-        if((*simulator)->calling_number == 0) {
-            (*simulator)->calling_queue[(*simulator)->calling_number ++] = floor;
+void set_new_down_calling(simulatorStru * simulator, int floor) {
+    if((*simulator)->calling_down_number == 0) {
+        (*simulator)->calling_down_queue[(*simulator)->calling_down_number ++] = floor;
+        return;
+    }
+    // 直接插入排序
+    int idx;
+    for(idx = (*simulator)->calling_down_number; idx > 0; idx ++) {
+        if((*simulator)->calling_down_queue[idx - 1] == floor) {
+            // 重复信号
             return;
         }
-        // 直接插入排序
-        int idx;
-        for(idx = (*simulator)->calling_number; idx > 0; idx ++) {
-            if((*simulator)->calling_queue[idx - 1] < floor) {
-                // 插入新元素
-                (*simulator)->calling_queue[idx] = floor;
-                break;
-            } else {
-                // 后移元素
-                (*simulator)->calling_queue[idx] = (*simulator)->calling_queue[idx - 1];
-                if(idx == 1) {
-                    // 插入到记录头部
-                    (*simulator)->calling_queue[0] = floor;
-                }
+        if((*simulator)->calling_down_queue[idx - 1] < floor) {
+            // 插入新元素
+            (*simulator)->calling_down_queue[idx] = floor;
+            break;
+        } else {
+            // 后移元素
+            (*simulator)->calling_down_queue[idx] = (*simulator)->calling_down_queue[idx - 1];
+            if(idx == 1) {
+                // 插入到记录头部
+                (*simulator)->calling_down_queue[0] = floor;
             }
         }
     }
@@ -263,13 +296,76 @@ void set_new_calling(simulatorStru * simulator, int floor) {
  */
 void get_calling(simulatorStru * simulator, elevatorStru * elevator) {
     int idx;
-    for(idx = 0; idx < (*simulator)->calling_number; idx ++) {
-        if((*simulator)->calling_queue[idx] > (*elevator)->current_floor) {
-            go_to(elevator, (*simulator)->calling_queue[idx]);
-        } else if(idx + 1 == (*simulator)->calling_number) {
-            go_to(elevator, (*simulator)->calling_queue[idx]);
+    // 分配上升信号
+    for(idx = 0; idx < (*simulator)->calling_up_number; idx ++) {
+        if((*simulator)->calling_up_queue[idx] == (*elevator)->current_floor) {
+            delete_up_calling(simulator, (*elevator)->current_floor);
+            (*elevator)->state = Opening;
+            (*elevator)->state_time = 0;
+            return;
+        } else if((*simulator)->calling_up_queue[idx] > (*elevator)->current_floor) {
+            go_to(elevator, (*simulator)->calling_up_queue[idx]);
+            return;
+        } else if(idx + 1 == (*simulator)->calling_up_number) {
+            go_to(elevator, (*simulator)->calling_up_queue[idx]);
+            return;
         }
     }
+    // 分配下降信号
+    for(idx = 0; idx < (*simulator)->calling_down_number; idx ++) {
+        if((*simulator)->calling_down_queue[idx] == (*elevator)->current_floor) {
+            delete_down_calling(simulator, (*elevator)->current_floor);
+            (*elevator)->state = Opening;
+            (*elevator)->state_time = 0;
+            return;
+        } else if((*simulator)->calling_down_queue[idx] < (*elevator)->current_floor) {
+            go_to(elevator, (*simulator)->calling_down_queue[idx]);
+            return;
+        } else if(idx + 1 == (*simulator)->calling_down_number) {
+            go_to(elevator, (*simulator)->calling_down_queue[idx]);
+            return;
+        }
+    }
+}
+
+/**
+ * 删除某层上升呼叫信号
+ *
+ * @param elevator 电梯
+ * @param floor 目标楼层
+ * @return void
+ */
+void delete_up_calling(simulatorStru * simulator, int floor) {
+    int idx, anchor = -1;
+    for(idx = 0; idx < (*simulator)->calling_up_number; idx ++) {
+        if((*simulator)->calling_up_queue[idx] == floor) {
+            anchor = idx;
+        }
+    }
+    for(idx = anchor; idx < (*simulator)->calling_up_number; idx ++) {
+        (*simulator)->calling_up_queue[idx] = (*simulator)->calling_up_queue[idx + 1];
+    }
+    (*simulator)->calling_up_number --;
+}
+
+/**
+ * 删除某层下降呼叫信号
+ *
+ * @param elevator 电梯
+ * @param floor 目标楼层
+ * @return void
+ */
+void delete_down_calling(simulatorStru * simulator, int floor) {
+    int idx, anchor = -1;
+    for(idx = 0; idx < (*simulator)->calling_down_number; idx ++) {
+        if((*simulator)->calling_down_queue[idx] == floor) {
+            anchor = idx;
+        }
+    }
+    for(idx = anchor; idx < (*simulator)->calling_down_number; idx ++) {
+        (*simulator)->calling_down_queue[idx] = (*simulator)->calling_down_queue[idx + 1];
+    }
+    (*simulator)->calling_down_number --;
 }
 
 /**
@@ -284,13 +380,36 @@ void go_to(elevatorStru * elevator, int floor) {
         (*elevator)->state = Opening;
         (*elevator)->destination = 0;  // 目标楼层置 0
     } else if((*elevator)->current_floor < floor) {
-        (*elevator)->state = Downing;
-        (*elevator)->destination = floor;
-    } else {
         (*elevator)->state = Uping;
         (*elevator)->destination = floor;
+    } else {
+        (*elevator)->state = Downing;
+        (*elevator)->destination = floor;
     }
-        (*elevator)->state_time = 0;  // 重置当前状态时间
+    (*elevator)->state_time = 0;  // 重置当前状态时间
+}
+
+/**
+ * 从电梯中删除用户
+ *
+ * @param elevator 电梯
+ * @param cust_id 用户 ID
+ * @return void
+ */
+void delete_cust_from_elev(elevatorStru * elevator, int cust_id) {
+    int idx, anchor = -1;
+    for(idx = 0; idx < (*elevator)->customer; idx ++) {
+        customerStru cust;
+        cust = (*elevator)->customers[idx];
+        if(cust->id == cust_id) {
+            anchor = idx;
+            break;
+        }
+    }
+    for(idx = anchor; idx < (*elevator)->customer; idx ++) {
+        (*elevator)->customers[idx] = (*elevator)->customers[idx + 1];
+    }
+    (*elevator)->customer --;
 }
 
 /**
@@ -331,6 +450,7 @@ bool out_elevator(elevatorStru * elevator) {
             // 用户完成出电梯动作
             cust->state = Leaving;
             cust->state_time = 0;
+            delete_cust_from_elev(elevator, cust->id);
             (*elevator)->out_floor_front ++;
             if((*elevator)->in_floor_front == (*elevator)->in_floor_rear) {
                 return true;
@@ -387,6 +507,35 @@ bool in_elevator(elevatorStru * elevator) {
         return false;
     } else {
         return true;
+    }
+}
+
+/**
+ * 设置电梯目的地
+ *
+ * @param elevator 电梯
+ * @return void
+ */
+void set_destination(elevatorStru * elevator) {
+    int idx, dest;
+    dest = 0;
+    for(idx = 0; idx < (*elevator)->customer; idx ++) {
+        customerStru cust;
+        cust = (*elevator)->customers[idx];
+        if(dest == 0) {
+            dest = cust->out_floor;
+        } else if(cust->out_floor > dest && cust->out_floor > (*elevator)->current_floor) {
+            dest = cust->out_floor;
+        } else if(cust->out_floor < dest && cust->out_floor < (*elevator)->current_floor) {
+            dest = cust->out_floor;
+        }
+    }
+    if(dest != 0) {
+        go_to(elevator, dest);
+    } else {
+        (*elevator)->state = Idle;
+        (*elevator)->state_time = 0;
+        (*elevator)->destination = 0;
     }
 }
 

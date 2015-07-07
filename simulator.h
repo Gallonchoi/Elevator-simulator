@@ -224,10 +224,15 @@ void print_cur_state(simulatorStru * simulator) {
     printf(" >>>>>>>>>>>>>>>> 电梯数量: %d\n", (*simulator)->elevator);
     printf(" >>>>>>>>>>>>>>>> 用户数量: %d\n", (*simulator)->customer);
     printf(" >>>>>>>>>>>>>>>> 呼叫信号: ");
-    for(idx = 0; idx < (*simulator)->calling_number; idx ++) {
-        printf("%d, ", (*simulator)->calling_queue[idx]);
+    printf("上升(");
+    for(idx = 0; idx < (*simulator)->calling_up_number; idx ++) {
+        printf("%d, ", (*simulator)->calling_up_queue[idx]);
     }
-    printf("\n");
+    printf(") 下降(");
+    for(idx = 0; idx < (*simulator)->calling_down_number; idx ++) {
+        printf("%d, ", (*simulator)->calling_down_queue[idx]);
+    }
+    printf(")\n");
     // 输出电梯状态
     printf(" 电梯状态:\n");
     for(idx = 0; idx < (*simulator)->elevator; idx ++) {
@@ -236,6 +241,7 @@ void print_cur_state(simulatorStru * simulator) {
         printf(" [%d] 电梯ID:     %d\n", idx, elev->id);
         printf("      电梯位置:    %d\n", elev->current_floor);
         printf("      当前状态:    %s\n", get_elev_state(elev->state));
+        printf("      目的楼层:    %d\n", elev->destination);
         printf("      载有用户数量: %d\n", elev->customer);
     }
     // 输出用户状态
@@ -303,11 +309,15 @@ void update_elevator(simulatorStru * simulator) {
             if(elev->state_time == elev->move_time) {
                 // 电梯上升一层
                 elev->current_floor ++;
+                elev->state_time = 0;
                 if(elev->current_floor == elev->destination) {
                     // 电梯到达目的楼层
                     elev->state = Opening;  // 变换状态为"正在打开门"
                     elev->state_time = 0;  // 置 0 当前状态时间
+                    delete_up_calling(simulator, elev->current_floor);
+                    delete_down_calling(simulator, elev->current_floor);
                 } else {
+                    delete_up_calling(simulator, elev->current_floor);
                     add_up_customer(simulator, &elev, elev->current_floor);
                     if(elev->in_floor_front < elev->in_floor_rear) {
                         elev->state = Opening;
@@ -320,11 +330,15 @@ void update_elevator(simulatorStru * simulator) {
             if(elev->state_time == elev->move_time) {
                 // 电梯下降一层
                 elev->current_floor --;
+                elev->state_time = 0;
                 if(elev->current_floor == elev->destination) {
                     // 电梯到达目的楼层
                     elev->state = Opening;  // 变换状态为"正在打开门"
                     elev->state_time = 0;  // 置 0 当前状态时间
+                    delete_up_calling(simulator, elev->current_floor);
+                    delete_down_calling(simulator, elev->current_floor);
                 } else {
+                    delete_down_calling(simulator, elev->current_floor);
                     add_down_customer(simulator, &elev, elev->current_floor);
                     if(elev->in_floor_front < elev->in_floor_rear) {
                         elev->state = Opening;
@@ -334,6 +348,7 @@ void update_elevator(simulatorStru * simulator) {
             }
             break;
         case Opening:
+            // 取消呼叫信号
             if(elev->state_time == elev->gate_op_time) {
                 // 电梯完成开门动作
                 elev->state = Opened;  // 变换状态为"已打开"
@@ -361,7 +376,8 @@ void update_elevator(simulatorStru * simulator) {
         case Closing:
             if(elev->state_time == elev->gate_op_time) {
                 // 电梯完成关门动作
-                // TODO: 设置目的楼层
+                // 设置目的楼层
+                set_destination(&elev);
             }
             break;
         }
@@ -424,7 +440,11 @@ void add_customer(simulatorStru * simulator, int in_floor, int out_floor, int pa
     customer->state = Waiting;
     customer->elevator_id = 0;
     (*simulator)->customer_queue[(*simulator)->customer ++] = customer;
-    set_new_calling(simulator, customer->in_floor);
+    if(in_floor < out_floor) {
+        set_new_up_calling(simulator, customer->in_floor);
+    } else {
+        set_new_down_calling(simulator, customer->in_floor);
+    }
 }
 
 /**
