@@ -89,6 +89,8 @@ typedef struct {
     elevatorStru elevator_queue[10];  // 电梯队列
 } * simulatorStru, simStru;
 
+void go_to(elevatorStru * elevator, int floor);
+
 /**
  * 获取新电梯 id
  *
@@ -164,22 +166,43 @@ char * get_cust_state(custState state) {
 }
 
 /**
- * 查看某楼层是否有电梯
+ * 添加某楼层等待上楼用户到电梯队列
  *
  * @param simulator 模拟器
+ * @param elevator 电梯
  * @param floor 目标楼层
- * @return elevatorStru
+ * @return void
  */
-elevatorStru search_elevator(simulatorStru * simulator, int floor) {
+void add_up_customer(simulatorStru * simulator, elevatorStru * elevator, int floor) {
     int idx;
-    for(idx = 0; idx < (*simulator)->elevator; idx ++) {
-        elevatorStru elev;
-        elev = (*simulator)->elevator_queue[idx];
-        if(elev->state == Opened && elev->current_floor == floor) {
-            return elev;
+    for(idx = 0; idx < (*simulator)->customer; idx ++) {
+        customerStru cust;
+        cust = (*simulator)->customer_queue[idx];
+        if(cust->in_floor == floor && cust->state == Waiting && cust->out_floor > floor) {
+            cust->state = Accessing;
+            (*elevator)->in_floor_queue[(*elevator)->in_floor_rear++] = cust;
         }
     }
-    return NULL;
+}
+
+/**
+ * 添加某楼层等待下楼用户到电梯队列
+ *
+ * @param simulator 模拟器
+ * @param elevator 电梯
+ * @param floor 目标楼层
+ * @return void
+ */
+void add_down_customer(simulatorStru * simulator, elevatorStru * elevator, int floor) {
+    int idx;
+    for(idx = 0; idx < (*simulator)->customer; idx ++) {
+        customerStru cust;
+        cust = (*simulator)->customer_queue[idx];
+        if(cust->in_floor == floor && cust->state == Waiting && cust->out_floor < floor) {
+            cust->state = Accessing;
+            (*elevator)->in_floor_queue[(*elevator)->in_floor_rear++] = cust;
+        }
+    }
 }
 
 /**
@@ -201,13 +224,17 @@ bool search_calling(simulatorStru * simulator, int floor) {
 
 /**
  * 设置新的呼叫信号
- *p
+ *
  * @param simulator 模拟器
  * @param floor 呼叫楼层
  * @return void
  */
 void set_new_calling(simulatorStru * simulator, int floor) {
     if(search_calling(simulator, floor) == false) {
+        if((*simulator)->calling_number == 0) {
+            (*simulator)->calling_queue[(*simulator)->calling_number ++] = floor;
+            return;
+        }
         // 直接插入排序
         int idx;
         for(idx = (*simulator)->calling_number; idx > 0; idx ++) {
@@ -228,6 +255,24 @@ void set_new_calling(simulatorStru * simulator, int floor) {
 }
 
 /**
+ * 设置空闲电梯信号
+ *
+ * @param simulator 模拟器
+ * @param elevator 电梯
+ * @return void
+ */
+void get_calling(simulatorStru * simulator, elevatorStru * elevator) {
+    int idx;
+    for(idx = 0; idx < (*simulator)->calling_number; idx ++) {
+        if((*simulator)->calling_queue[idx] > (*elevator)->current_floor) {
+            go_to(elevator, (*simulator)->calling_queue[idx]);
+        } else if(idx + 1 == (*simulator)->calling_number) {
+            go_to(elevator, (*simulator)->calling_queue[idx]);
+        }
+    }
+}
+
+/**
  * 设置电梯目标楼层
  *
  * @param elevator 电梯
@@ -236,17 +281,16 @@ void set_new_calling(simulatorStru * simulator, int floor) {
  */
 void go_to(elevatorStru * elevator, int floor) {
     if((*elevator)->current_floor == floor) {
-        (*elevator)->state = Idle;
+        (*elevator)->state = Opening;
         (*elevator)->destination = 0;  // 目标楼层置 0
     } else if((*elevator)->current_floor < floor) {
         (*elevator)->state = Downing;
         (*elevator)->destination = floor;
-        (*elevator)->state_time = 0;  // 重置当前状态时间
     } else {
         (*elevator)->state = Uping;
         (*elevator)->destination = floor;
-        (*elevator)->state_time = 0;  // 重置当前状态时间
     }
+        (*elevator)->state_time = 0;  // 重置当前状态时间
 }
 
 /**
@@ -299,6 +343,26 @@ bool out_elevator(elevatorStru * elevator) {
 }
 
 /**
+ * 确定进电梯用户队列
+ *
+ * @param simulator 模拟器
+ * @param elevator 电梯
+ * @return void
+ */
+void in_elevator_queue(simulatorStru * simulator, elevatorStru * elevator) {
+    int idx;
+    for(idx = 0; idx < (*simulator)->customer; idx ++) {
+        customerStru cust;
+        cust = (*simulator)->customer_queue[idx];
+        if(cust->state == Waiting && cust->in_floor == (*elevator)->current_floor) {
+            (*elevator)->in_floor_queue[(*elevator)->in_floor_rear ++] = cust;
+            cust->state = Accessing;
+            cust->state_time = 0;
+        }
+    }
+}
+
+/**
  * 用户进入电梯, 所有用户进入电梯返回 true, 否则返回 false
  *
  * @param elevator 电梯
@@ -313,7 +377,9 @@ bool in_elevator(elevatorStru * elevator) {
             // 用户完成进入电梯动作
             cust->state = Ongoing;
             cust->state_time = 0;
+            cust->elevator_id = (*elevator)->id;
             (*elevator)->in_floor_front ++;
+            (*elevator)->customers[(*elevator)->customer ++] = cust;
             if((*elevator)->in_floor_front == (*elevator)->in_floor_rear) {
                 return true;
             }
