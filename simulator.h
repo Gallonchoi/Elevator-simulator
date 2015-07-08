@@ -131,9 +131,6 @@ void read_command() {
             print_help();
             break;
         case 7:
-            // 重置
-            break;
-        case 8:
             // 退出
             is_exit = true;
             printf("退出中...\n");
@@ -163,8 +160,7 @@ void print_help() {
     printf(" 4 N       : 模拟到下N个单位时间(N为数字)\n");
     printf(" 5 I O P A : 添加用户(I为呼叫楼层, O为目的楼层, P为容忍单位时间, A为进出电梯单位时间)\n");
     printf(" 6         : 设置变量\n");
-    printf(" 7         : 重置\n");
-    printf(" 8         : 退出\n");
+    printf(" 7         : 退出\n");
     printf(" > ");
 }
 
