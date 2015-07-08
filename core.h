@@ -60,7 +60,7 @@ typedef struct {
  */
 typedef struct {
     int id;
-    int base_floor;  // 初始位置
+    int base_floor;  // 初始位置, 非本垒层
     int current_floor;  // 当前位置
     int state_time;  // 当前状态时间
     int customer;  // 当前载有用户数量
@@ -577,22 +577,6 @@ bool search_down_calling(simulatorStru * simulator, int floor) {
         }
     }
     return false;
-}
-
-/**
- * 去除所有用户
- *
- * @param simulator 模拟器
- * @return void
- */
-void delete_all_cust(simulatorStru * simulator) {
-    int idx;
-    for(idx = 0; idx < (*simulator)->customer; idx ++) {
-        customerStru cust;
-        cust = (*simulator)->customer_queue[idx];
-        free(cust);
-    }
-    (*simulator)->customer = 0;
 }
 
 #endif /* CORE_H */

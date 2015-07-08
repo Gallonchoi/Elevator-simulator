@@ -14,6 +14,8 @@ void add_customer(simulatorStru * simulator, int in_floor, int out_floor, int pa
 void add_elevator(simulatorStru * simulator, int base);
 void update_elevator(simulatorStru * simulator);
 void update_customer(simulatorStru * simulator);
+void set_elevator_number(simulatorStru * simulator, int elevator);
+void destroy_simulator(simulatorStru * simulator);
 
 /**
  * 读取并解析命令
@@ -81,7 +83,7 @@ void read_command() {
                     printf("参数错误, 电梯数量少于1或大于9\n");
                     printf("=========================\n");
                 } else {
-                    simulator->elevator = temp;
+                    set_elevator_number(&simulator, temp);
                 }
                 break;
             case 1:
@@ -126,7 +128,6 @@ void read_command() {
                 printf("=========================\n");
                 break;
             }
-            delete_all_cust(&simulator);  // 去除所有用户
             print_env(&simulator);
             print_help();
             break;
@@ -294,7 +295,7 @@ void update_elevator(simulatorStru * simulator) {
         case Idle:
             if(elev->state_time >= (*simulator)->max_idle_time) {
                 // 电梯静止时间到达最大空闲时间, 返回本垒层
-                go_to(&elev, elev->base_floor);
+                go_to(&elev, (*simulator)->base_floor);
             } else {
                 get_calling(simulator, &elev);
             }
@@ -302,7 +303,12 @@ void update_elevator(simulatorStru * simulator) {
         case Uping:
             if(elev->state_time == elev->move_time) {
                 // 电梯上升一层
-                elev->current_floor ++;
+                if(elev->current_floor == -1) {
+                    // 没有 0 层
+                    elev->current_floor = 1;
+                } else {
+                    elev->current_floor ++;
+                }
                 elev->state_time = 0;
                 if(elev->current_floor == elev->destination) {
                     // 电梯到达目的楼层
@@ -323,7 +329,12 @@ void update_elevator(simulatorStru * simulator) {
         case Downing:
             if(elev->state_time == elev->move_time) {
                 // 电梯下降一层
-                elev->current_floor --;
+                if(elev->current_floor == 1) {
+                    // 没有 0 层
+                    elev->current_floor = -1;
+                } else {
+                    elev->current_floor --;
+                }
                 elev->state_time = 0;
                 if(elev->current_floor == elev->destination) {
                     // 电梯到达目的楼层
@@ -463,7 +474,47 @@ void add_elevator(simulatorStru * simulator, int base) {
     elevator->in_floor_rear = 0;
     elevator->out_floor_front = 0;
     elevator->out_floor_rear = 0;
+    elevator->customer = 0;
     (*simulator)->elevator_queue[(*simulator)->elevator++] = elevator;
+}
+
+/**
+ * 设置电梯数量
+ *
+ * @param simulator 模拟器
+ * @param elevator 电梯数量
+ * @return void
+ */
+void set_elevator_number(simulatorStru * simulator, int elevator) {
+    int idx;
+    for(idx = 0; idx < (*simulator)->elevator; idx ++) {
+        free((*simulator)->elevator_queue[idx]);
+    }
+
+    (*simulator)->elevator = 0;
+
+    for(idx = 0; idx < elevator; idx ++) {
+        add_elevator(simulator, (*simulator)->base_floor);
+    }
+}
+
+
+/**
+ * 销毁模拟器
+ *
+ * @param simulator 模拟器
+ * @return void
+ */
+void destroy_simulator(simulatorStru * simulator) {
+    int idx;
+    for(idx = 0; idx < (*simulator)->elevator; idx ++) {
+        free((*simulator)->elevator_queue[idx]);
+    }
+    for(idx = 0; idx < (*simulator)->customer; idx ++) {
+        free((*simulator)->customer_queue[idx]);
+    }
+    free(*simulator);
+    *simulator = NULL;
 }
 
 #endif /* SIMULATOR_H */
